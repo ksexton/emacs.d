@@ -1,0 +1,739 @@
+#+TITLE: Emacs configuration
+#+AUTHOR: Kyle Sexton
+#+OPTIONS: toc:4 h:4
+#+STARTUP: content
+
+
+* Configuration
+** Personal information
+#+BEGIN_SRC emacs-lisp
+(setq user-full-name "Kyle Sexton"
+      user-mail-address "ks@mocker.org")
+#+END_SRC
+
+** Emacs initialization
+*** Load secrets
+Keep slightly more sensitive information in a separate file so that I can easily publish my main configuration.
+
+#+BEGIN_SRC emacs-lisp
+(load-file "~/.emacs.d/.private.el.gpg")
+#+END_SRC
+
+*** Initial setup
+#+BEGIN_SRC emacs-lisp
+(server-start)
+(setq create-lockfiles nil) 
+(setq inhibit-startup-screen t)
+(setq ns-use-srgb-colorspace t)
+(setq make-backup-files nil)
+(setq current-language-environment "UTF-8")
+(global-font-lock-mode 1)
+(set-terminal-coding-system 'utf-8)
+(set-keyboard-coding-system 'utf-8)
+(prefer-coding-system 'utf-8)
+(global-visual-line-mode t)
+
+(setq initial-major-mode 'org-mode)
+
+(setq mac-option-modifier 'meta)
+(setq mac-command-modifier 'super)
+
+(line-number-mode t)
+(column-number-mode t)
+(size-indication-mode t)
+
+#+END_SRC
+
+*** Change "yes or no" to "y or n"
+#+BEGIN_SRC emacs-lisp
+(fset 'yes-or-no-p 'y-or-n-p)
+#+END_SRC
+
+*** Package setup
+#+BEGIN_SRC emacs-lisp
+(require 'package)
+(package-initialize)
+
+(add-to-list 'package-archives '("org" . "http://orgmode.org/elpa/") t)
+(add-to-list 'package-archives '("melpa" . "http://melpa.org/packages/") t)
+(add-to-list 'package-archives '("melpa-stable" . "http://stable.melpa.org/packages/") t)
+(add-to-list 'package-archives '("marmalade" . "http://marmalade-repo.org/packages/") t)
+#+END_SRC
+
+Setup use-package
+
+#+BEGIN_SRC emacs-lisp
+(unless (package-installed-p 'use-package)
+  (progn
+    (package-refresh-contents)
+    (package-install 'use-package)
+    (package-initialize)))
+
+(require 'use-package)
+#+END_SRC
+
+*** Appearance
+#+BEGIN_SRC emacs-lisp
+(setq indicate-empty-lines t)
+(setq indicate-buffer-boundaries 'left)
+(setq fringe-indicator-alist '(
+                               (truncation . (left-arrow right-arrow))
+                               (continuation . (left-curly-arrow backslash)) ;; right-curly-arrow
+                               (overlay-arrow . right-triangle)
+                               (up . up-arrow)
+                               (down . down-arrow)
+                               (top . (top-left-angle top-right-angle))
+                               (bottom . (bottom-left-angle bottom-right-angle top-right-angle top-left-angle))
+                               (top-bottom . (left-bracket right-bracket top-right-angle top-left-angle))
+                               (empty-line . empty-line)
+                               (unknown . question-mark)))
+(setq fringe-cursor-alist '(
+                            (box . left-triangle)
+                            (hollow . right-triangle)
+                            (bar . left-triangle)
+                            (hbar . horizontal-bar)
+                            (hollow-small . hollow-square)))
+
+(use-package cyberpunk-theme
+  :ensure t
+  :init
+  (load-theme 'cyberpunk t))
+
+(when (eq system-type 'darwin)
+  (set-face-attribute 'default nil :family "Input Mono")
+  (set-face-attribute 'default nil :height 140))
+
+(setq indicate-empty-lines t)
+(add-to-list 'custom-theme-load-path "~/.emacs.d/themes")
+
+(tooltip-mode -1)
+(tool-bar-mode -1)
+(scroll-bar-mode -1)
+(menu-bar-mode 1)
+#+END_SRC
+** Utilities
+*** Helm
+#+BEGIN_SRC emacs-lisp
+(use-package helm
+  :ensure t
+  :config
+  ;; The default "C-x c" is quite close to "C-x C-c", which quits Emacs.
+  ;; Changed to "C-c h". Note: We must set "C-c h" globally, because we
+  ;; cannot change `helm-command-prefix-key' once `helm-config' is loaded.
+  (global-set-key (kbd "C-c h") 'helm-command-prefix)
+  (global-unset-key (kbd "C-x c"))
+
+  (define-key helm-map (kbd "<tab>") 'helm-execute-persistent-action) ; rebind tab to run persistent action
+  (define-key helm-map (kbd "C-i") 'helm-execute-persistent-action) ; make TAB works in terminal
+  (define-key helm-map (kbd "C-z")  'helm-select-action) ; list actions using C-z
+
+  (when (executable-find "curl")
+    (setq helm-google-suggest-use-curl-p t))
+
+  (setq helm-split-window-in-side-p           t ; open helm buffer inside current window, not occupy whole other window
+        helm-move-to-line-cycle-in-source     t ; move to end or beginning of source when reaching top or bottom of source.
+        helm-ff-search-library-in-sexp        t ; search for library in `require' and `declare-function' sexp.
+        helm-scroll-amount                    8 ; scroll 8 lines other window using M-<next>/M-<prior>
+        helm-ff-file-name-history-use-recentf t)
+
+  (helm-mode 1)
+
+
+  (ido-mode -1) ;; Turn off ido mode in case I enabled it accidentally
+
+
+  :init
+  (require 'helm-config))
+
+
+(use-package helm-descbinds
+  :ensure t
+  :bind (("C-h b" . helm-descbinds)
+         ("C-h w" . helm-descbinds)))
+
+
+(use-package helm-dash
+  :ensure t
+  :bind (("C-h d" . helm-dash-at-point))
+  :config
+  (setq helm-dash-docsets-path
+        (format "%s/.emacs.d/docsets" (getenv "HOME"))
+        helm-dash-enable-debugging nil
+        helm-dash-common-docsets '("clojure" "docker" "chef")
+        helm-dash-browser-func 'eww))
+
+
+
+
+#+END_SRC
+*** Movement
+#+BEGIN_SRC emacs-lisp
+(use-package avy
+  :ensure t
+  :bind (("C-c j" . avy-goto-word-or-subword-1)
+         ("C-." . avy-goto-word-or-subword-1)
+         ("s-l" . avy-goto-line)
+         ("s-s" . ace-window)))
+#+END_SRC
+*** Projectile
+#+BEGIN_SRC emacs-lisp
+(use-package projectile
+  :ensure t
+  :init
+  (projectile-global-mode))
+
+#+END_SRC
+*** Terminal
+#+BEGIN_SRC emacs-lisp
+(use-package term
+  :demand t)
+
+
+(use-package sane-term
+  :ensure t
+  :bind (("C-c t" . sane-term)
+         ("C-c T" . sane-term-create)
+         :map term-mode-map
+         ("C-t" . my-term-switch-line-char)
+         :map term-raw-map
+         ("C-t" . my-term-switch-line-char)
+         ("M-x" . execute-extended-command)
+         ("C-y" . term-paste)
+         ("C-c l" . org-store-link)
+         ("C-c c" . org-capture)
+         ("C-c a" . org-agenda)
+         ("C-c C-e" . term-send-esc))
+  :config
+  (setq sane-term-shell-command "/bin/bash")
+  (defun my-term-switch-line-char ()
+    "Switch `term-in-line-mode' and `term-in-char-mode' in `ansi-term'"
+    (interactive)
+    (cond
+     ((term-in-line-mode)
+      (term-char-mode)
+      (hl-line-mode -1))
+     ((term-in-char-mode)
+      (term-line-mode)
+      (hl-line-mode 1))))
+
+  (add-hook 'term-mode-hook (lambda ()
+                              (yas-minor-mode -1)
+                              (setq term-buffer-maximum-size 1000)
+                              (toggle-truncate-lines 1)
+
+                              (define-key term-mode-map (kbd "C-t") 'my-term-switch-line-char)
+                              ))
+
+  (add-hook 'term-exec-hook (lambda ()
+                              (let* ((buff (current-buffer))
+                                     (proc (get-buffer-process buff)))
+                                (lexical-let ((buff buff))
+                                             (set-process-sentinel proc (lambda (process event)
+                                                                          (if (string= event "finished\n")
+                                                                              (kill-buffer buff)))))))))
+
+
+#+END_SRC
+
+*** Expand Region
+#+BEGIN_SRC emacs-lisp
+(use-package expand-region
+  :ensure t
+  :bind ("C-=" . er/expand-region))
+#+END_SRC
+
+*** PDF View
+#+BEGIN_SRC emacs-lisp
+(use-package pdf-view
+  :if (eq system-type 'darwin)
+  :config
+  (setq pdf-info-epdfinfo-program "/usr/local/bin/epdfinfo"
+        pdf-view-midnight-colors `(,(face-attribute 'default :foreground) .
+                                   ,(face-attribute 'default :background)))
+
+  (add-to-list 'auto-mode-alist '("\\.pdf\\'" . pdf-view-mode))
+
+  (add-hook 'pdf-view-mode-hook (lambda ()
+                                  (pdf-view-midnight-minor-mode))))
+
+
+#+END_SRC
+
+*** Multi-cursors
+#+BEGIN_SRC emacs-lisp
+(use-package multiple-cursors
+  :ensure t
+  :bind (("C-M-l" . mc/edit-lines)))
+#+END_SRC
+
+*** Rainbow Delimiters
+#+BEGIN_SRC emacs-lisp
+(use-package rainbow-delimiters
+  :ensure t
+  :init
+  (add-hook 'prog-mode-hook #'rainbow-delimiters-mode))
+#+END_SRC
+
+*** Idle Highlight
+#+BEGIN_SRC emacs-lisp
+(use-package idle-highlight-mode
+  :ensure t)
+#+END_SRC
+
+*** Git gutter
+#+BEGIN_SRC emacs-lisp
+(use-package git-gutter
+  :ensure t
+  :config
+  (add-hook 'prog-mode-hook #'git-gutter-mode))
+#+END_SRC
+** Programming
+*** Golang
+#+BEGIN_SRC emacs-lisp
+(use-package go-mode
+  :ensure t)
+
+#+END_SRC
+*** Clojure
+#+BEGIN_SRC emacs-lisp
+(use-package subword
+    :ensure t)
+
+(use-package clojure-mode
+  :ensure t
+  :mode (("\\.clj\\'" . clojure-mode)
+         ("\\.edn\\'" . clojure-mode))
+  :config
+  (add-hook 'clojure-mode-hook #'yas-minor-mode)
+  (add-hook 'clojure-mode-hook #'subword-mode)
+  (add-hook 'clojure-mode-hook #'smartparens-strict-mode)
+  (add-hook 'clojure-mode-hook #'rainbow-delimiters-mode)
+  (add-hook 'clojure-mode-hook #'eldoc-mode)
+  (add-hook 'clojure-mode-hook #'idle-highlight-mode))
+
+(use-package cider
+  :pin melpa-stable
+  :ensure t
+  :defer t
+  :diminish subword-mode
+  :config
+  (add-hook 'cider-mode-hook #'clj-refactor-mode)
+  (setq nrepl-log-messages t
+        cider-repl-display-in-current-window t
+        cider-repl-use-clojure-font-lock t
+        cider-prompt-save-file-on-load 'always-save
+        cider-font-lock-dynamically '(macro core function var)
+        nrepl-hide-special-buffers t
+        cider-overlays-use-font-lock t)
+  (cider-repl-toggle-pretty-printing))
+
+(use-package cider-eval-sexp-fu
+  :defer t)
+
+(use-package clj-refactor
+  :defer t
+  :ensure t
+  :diminish clj-refactor-mode
+  :config (cljr-add-keybindings-with-prefix "C-c C-m"))
+
+;; M-x sp-cheat-sheet for hints
+(use-package smartparens
+  :ensure t
+  :diminish smartparens-mode
+  :init
+  (setq sp-override-key-bindings
+        '(("C-<right>" . nil)
+          ("C-<left>" . nil)
+          ("C-)" . sp-forward-slurp-sexp)
+          ("M-<backspace>" . nil)
+          ("C-(" . sp-forward-barf-sexp)))
+  (add-hook 'prog-mode-hook #'smartparens-strict-mode)
+  :config
+  (require 'smartparens-config)
+  (sp-use-smartparens-bindings)
+  (sp--update-override-key-bindings)
+  :commands (smartparens-mode show-smartparens-mode smartparens-strict-mode))
+#+END_SRC
+
+*** Docker
+#+BEGIN_SRC emacs-lisp
+(use-package dockerfile-mode
+  :ensure t
+  :config
+  (add-to-list 'auto-mode-alist '("Dockerfile\\'" . dockerfile-mode)))
+#+END_SRC
+** Communication
+*** Gnus
+#+BEGIN_SRC emacs-lisp
+(require 'gnus)
+
+(setq message-fill-column (- (window-width) 5))
+(setq gnus-gravatar-size 64)
+(setq gnus-fetch-old-headers 'nil)
+(setq gnus-article-show-all-headers t)
+
+;; Get mail every 2 minutes
+(gnus-demon-add-handler 'gnus-group-get-new-news 2 t)
+(gnus-demon-init)
+
+;; Animate images
+(setq shr-image-animate t)
+
+;; Ensure that HTML emails are readable (changes background color to make text legible)
+(setq shr-color-visible-luminance-min 70)
+
+;; Accounts setup
+(setq gnus-select-method '(nntp "news.gmane.org"))
+(add-hook 'gnus-group-mode-hook 'gnus-topic-mode)
+
+(setq gnus-gcc-mark-as-read t)
+
+(setq gnus-permanently-visible-groups ".*INBOX")
+
+;; Imap search see http://www.emacswiki.org/emacs/GnusGmail#toc18
+(require 'nnir)
+
+(setq gnus-secondary-select-methods
+      '((nnimap "newcontext"
+                (nnimap-address "newcontext")
+                (nnimap-server-port 143)
+                (nnimap-stream network)
+                (nnir-search-engine imap)
+                (nnimap-authinfo-file "~/.authinfo"))   
+        (nnimap "mocker"
+                (nnimap-address "mocker")
+                (nnimap-server-port 143)
+                (nnimap-stream network)
+                (nnir-search-engine imap)
+                (nnimap-authinfo-file "~/.authinfo"))))
+
+;; Use msmtp
+(setq message-send-mail-function 'message-send-mail-with-sendmail)
+(setq sendmail-program "/usr/local/bin/msmtp")
+(setq message-sendmail-extra-arguments '("-a" "newcontext"))
+
+(setq gnus-article-sort-functions '(gnus-article-sort-by-date))
+
+(setq gnus-thread-hide-subtree nil)
+
+(setq gnus-parameters
+      '((".*"
+         (display . 200)
+         (expiry-wait . never))
+        ("gmane.*"
+         (posting-style
+          (name "Kyle Sexton")
+          (address "ks@mocker.org")
+          (bcc "ks@mocker.org")
+          (gcc "nnimap+mocker:\"Sent Items\"")
+          (organization "mocker.org")
+          (eval (setq message-sendmail-extra-arguments '("-a" "mocker")))
+          (signature-file "~/.signature-mocker")))
+        ("gwene.*"
+         (posting-style
+          (name "Kyle Sexton")
+          (address "ks@mocker.org")
+          (bcc "ks@mocker.org")
+          (gcc "nnimap+mocker:\"Sent Items\"")
+          (organization "mocker.org")
+          (eval (setq message-sendmail-extra-arguments '("-a" "mocker")))
+          (signature-file "~/.signature-mocker")))
+        ("nnimap\\+newcontext:.*"
+         (posting-style
+          (name "Kyle Sexton")
+          (address "kyle.sexton@newcontext.com")
+          (bcc "kyle.sexton@newcontext.com")
+          (gcc "nnimap+newcontext:\"[Gmail].Sent Mail\"")
+          (organization "newcontext.com")
+          (eval (setq message-sendmail-extra-arguments '("-a" "newcontext")))
+          (signature-file "~/.signature-newcontext")))  
+        ("nnimap\\+mocker:.*"
+         (posting-style
+          (name "Kyle Sexton")
+          (address "ks@mocker.org")
+          (bcc "ks@mocker.org")
+          (gcc "nnimap+mocker:\"Sent Items\"")
+          (organization "mocker.org")
+          (eval (setq message-sendmail-extra-arguments '("-a" "mocker")))
+          (signature-file "~/.signature-mocker")))))
+
+(setq-default
+ gnus-summary-line-format "%U%R%z %(%&user-date;  %-15,15f  %B%s%)\n"
+ gnus-user-date-format-alist '((t . "%Y-%m-%d %H:%M"))
+ gnus-thread-sort-functions '(gnus-thread-sort-by-date)
+ gnus-sum-thread-tree-false-root ""
+ gnus-sum-thread-tree-indent " "
+ gnus-sum-thread-tree-leaf-with-other "├> "
+ gnus-sum-thread-tree-root ""
+ gnus-sum-thread-tree-single-leaf "╰> "
+ gnus-sum-thread-tree-vertical "│")
+
+(setq gnus-treat-from-gravatar 'head)
+(setq gnus-treat-mail-gravatar 'head)
+
+(add-hook 'message-mode-hook 'append)
+
+(add-hook 'message-mode-hook
+          '(lambda () (setq fill-column 72))
+          'append)
+(add-hook 'message-mode-hook
+          '(lambda () (local-set-key (kbd "C-c M-o") 'org-mime-htmlize))
+          'append)
+
+(add-hook 'message-mode-hook 'turn-on-orgtbl)
+(add-hook 'message-mode-hook 'turn-on-orgstruct)
+(add-hook 'message-mode-hook 'turn-on-orgstruct++)
+(add-hook 'message-mode-hook 'turn-off-auto-fill)
+
+(add-hook 'message-mode-hook
+          '(lambda ()
+             (flyspell-mode t)))
+
+(add-to-list 'mm-inline-media-tests
+             '("application/msword" mm-inline-text identity))
+
+(add-to-list 'mm-automatic-external-display "application/msword")
+(add-to-list 'mm-attachment-override-types "application/msword")
+(add-to-list 'mm-automatic-display "application/msword")
+
+(add-hook 'gnus-summary-mode-hook 'my-setup-hl-line)
+(add-hook 'gnus-group-mode-hook 'my-setup-hl-line)
+
+(defun my-setup-hl-line ()
+  (hl-line-mode 1)
+  (setq cursor-type nil))
+
+(add-hook 'org-mime-html-hook
+          (lambda ()
+            (org-mime-change-element-style
+             "pre" (format "color: %s; background-color: %s;"
+                           "#E6E1DC" "#232323"))
+            (org-mime-change-class-style
+             "verse" "border-left: 2px solid gray; padding-left: 4px;")))
+
+
+(setq gnus-inhibit-startup-message      t    ;; no startup message
+      gnus-treat-strip-cr               t    ;; no carriage returns
+      message-kill-buffer-on-exit       t    ;; no hanging mail buffers
+      gnus-prompt-before-saving         t    ;; better than default
+      message-send-mail-partially-limit nil)  ;; size of sent messages
+
+(setq gnus-buttonized-mime-types
+      '("multipart/alternative" "multipart/signed"))
+
+(defun message-insert-signature (&optional force)
+  "Insert a signature.  See documentation for variable `message-signature'."
+  (interactive (list 0))
+  (let* ((signature
+          (cond
+           ((and (null message-signature)
+                 (eq force 0))
+            (save-excursion
+              (goto-char (point-max))
+              (not (re-search-backward message-signature-separator nil t))))
+           ((and (null message-signature)
+                 force)
+            t)
+           ((functionp message-signature)
+            (funcall message-signature))
+           ((listp message-signature)
+            (eval message-signature))
+           (t message-signature)))
+         signature-file)
+    (setq signature
+          (cond ((stringp signature)
+                 signature)
+                ((and (eq t signature) message-signature-file)
+                 (setq signature-file
+                       (if (and message-signature-directory
+                                ;; don't actually use the signature directory
+                                ;; if message-signature-file contains a path.
+                                (not (file-name-directory
+                                      message-signature-file)))
+                           (expand-file-name message-signature-file
+                                             message-signature-directory)
+                         message-signature-file))
+                 (file-exists-p signature-file))))
+    (when signature
+      (goto-char (point-max))
+      ;; Insert the signature.
+      (unless (bolp)
+        (insert "\n"))
+      (when message-signature-insert-empty-line
+        (insert "\n"))
+      (insert "\n")
+      (if (eq signature t)
+          (insert-file-contents signature-file)
+        (insert signature))
+      (goto-char (point-max))
+      (or (bolp) (insert "\n")))))
+
+(eval-after-load "gnus-msg"
+  '(defun gnus-inews-yank-articles (articles)
+    (let (beg article yank-string)
+      (goto-char (point-max))           ; put articles after signature
+      (insert "\n")                     ; and one extra newline
+                                        ; was this (message-goto-body)
+      (while (setq article (pop articles))
+        (when (listp article)
+          (setq yank-string (nth 1 article)
+                article (nth 0 article)))
+        (save-window-excursion
+          (set-buffer gnus-summary-buffer)
+          (gnus-summary-select-article nil nil nil article)
+          (gnus-summary-remove-process-mark article))
+        (gnus-copy-article-buffer nil yank-string)
+        (let ((message-reply-buffer gnus-article-copy)
+              (message-reply-headers
+               ;; The headers are decoded.
+               (with-current-buffer gnus-article-copy
+                 (save-restriction
+                   (nnheader-narrow-to-headers)
+                   (nnheader-parse-naked-head)))))
+          (message-yank-original)
+          (setq beg (or beg (mark t))))
+        (when articles
+          (insert "\n")))
+      (push-mark)
+     (message-goto-body)    ;  -- Modified, so point will be moved to beginning of article
+     (insert "\n\n")        ;  -- and two empty lines will be added.
+     (message-goto-body)))) ;  --
+
+(global-set-key (kbd "s-m") 'gnus)
+
+#+END_SRC
+** Org Mode
+#+BEGIN_SRC emacs-lisp
+;; Install org and contrib packages
+(use-package org-plus-contrib
+  :pin org
+  :ensure t)
+
+;; Configure org
+(use-package org
+  :bind (("\C-cl" . org-store-link)
+         ("\C-cc" . org-capture)
+         ("\C-ca" . org-agenda)
+         ("\C-cb" . org-iswitchb))
+
+  :config
+  (setq org-directory "~/git/org"
+        org-agenda-include-diary t
+        org-export-with-toc nil
+        org-export-with-section-numbers nil
+        org-export-with-sub-superscripts nil
+        org-agenda-files (mapcar 'abbreviate-file-name
+                                 (split-string
+                                  (shell-command-to-string "find ~/git/org/ -name \"*.org\"") "\n"))
+        org-edit-src-content-indentation 0
+        org-src-tab-acts-natively t
+        org-src-fontify-natively t
+        org-refile-targets (quote ((nil :maxlevel . 3)
+                                 (org-agenda-files :maxlevel . 3)))
+        org-agenda-skip-scheduled-if-done t
+        org-agenda-skip-deadline-if-done t
+        org-startup-indented t
+        org-agenda-window-setup 'current-window
+        org-deadline-warning-days 1
+        org-agenda-span 1
+        org-agenda-prefix-format '((agenda   . " %i %-30:c%?-12t% s") ; " %i %-12:c"
+                                   (timeline . "  % s")
+                                   (todo     . " %i %-12:c")
+                                   (tags     . " %i %-12:c")
+                                   (search   . " %i %-12:c"))
+        org-agenda-todo-keyword-format "%-5s"
+        org-babel-clojure-backend 'cider
+        org-src-window-setup 'current-window
+        org-export-backends (quote (
+                                    ascii
+                                    beamer
+                                    html
+                                    latex
+                                    md
+                                    ;; odt
+                                    s5
+                                    taskjuggler))
+        org-confirm-babel-evaluate nil
+        org-edit-src-content-indentation 0
+        org-src-tab-acts-natively t
+        org-src-fontify-natively t
+        org-confirm-babel-evaluate nil
+        org-todo-keywords (quote ((sequence "TODO(t)" "NEXT(n)" "|" "DONE(d)")
+                                  (sequence "WAITING(w@/!)" "HOLD(h@/!)" "|" "CANCELLED(c@/!)" "PHONE")
+                                  (sequence "NOTE")
+                                  (sequence "IDEA")
+                                  (sequence "APPT(a)")))
+
+        org-capture-templates (quote (("t" "task" entry (file+headline "~/git/org/inbox.org" "Tasks")
+                                       (file "~/.emacs.d/capture_templates/task.template"))
+                                      ("n" "note" entry (file+headline "~/git/org/inbox.org" "Notes")
+                                       (file "~/.emacs.d/capture_templates/note.template"))
+                                      ("j" "journal" entry (file+datetree "~/git/org/journal.org")
+                                       (file "~/.emacs.d/capture_templates/journal.template"))
+                                      ("s" "scratch pad" entry (file+datetree "~/git/org/journal.org")
+                                       (file "~/.emacs.d/capture_templates/scratch.template"))
+                                      ("m" "meeting" entry (file+headline "~/git/org/inbox.org" "Meeting")
+                                       (file "~/.emacs.d/capture_templates/meeting.template"))
+                                      ("x" "link" entry (file+datetree "~/git/org/bookmarks.org" "Links")
+                                       (file "~/.emacs.d/capture_templates/link.template") :immediate-finish t)))
+
+
+        org-agenda-custom-commands '(("w" tags-todo "-home")
+                                     ("P" "Printed agenda"
+                                      ((todo "TODO"                                          ;; todos sorted by context
+                                             ((org-agenda-prefix-format " [ ] %i %-30:c%?-12t% s") ;; [ ] %T: ")
+                                              (org-agenda-sorting-strategy '(tag-up priority-down))
+                                              (org-agenda-todo-keyword-format "")
+                                              (org-agenda-overriding-header "\nTasks by Context\n------------------\n"))))
+                                      ((org-agenda-with-colors nil)
+                                       (org-agenda-compact-blocks t)
+                                       (org-agenda-remove-tags t)
+                                       (ps-number-of-columns 1)
+                                       (ps-landscape-mode t))
+                                      ("~/Desktop/theagenda.ps" "~/Desktop/theagenda.html"))
+                                     ;; other commands go here
+                                     )
+        org-log-into-drawer "LOGBOOK"
+        org-ditaa-jar-path "~/.emacs.d/java/ditaa0_9.jar"
+        org-plantuml-jar-path "~/.emacs.d/java/plantuml.jar"
+        org-babel-clojure-backend 'cider
+
+        org-habit-preceding-days 7
+        org-habit-following-days 1
+        org-habit-graph-column 80
+        org-habit-show-habits-only-for-today t
+        org-habit-show-all-today t)
+        
+  (defun my-org-mode-hook ()
+    ;; Make something work in org-mode:
+    ;; (local-unset-key (kbd "something I use"))
+    (local-unset-key (kbd "C-'"))
+    ;; Require useful things
+    (require 'ob-ditaa)
+    (require 'ox-md)
+    (require 'ob-plantuml)
+    (require 'ob-dot)
+    (require 'ox-latex)
+    (add-to-list 'org-latex-classes
+             '("article" "\\documentclass[a4paper]{hitec}"
+               ("\\section{%s}" . "\\section*{%s}")
+               ("\\subsection{%s}" . "\\subsection*{%s}")
+               ("\\subsubsection{%s}" . "\\subsubsection*{%s}")
+               ("\\paragraph{%s}" . "\\paragraph*{%s}")
+               ("\\subparagraph{%s}" . "\\subparagraph*{%s}")))
+    (require 'ob-clojure)
+    (org-babel-do-load-languages 'org-babel-load-languages
+                                 '((clojure . t)))
+    (require 'org-habit))
+
+  (add-hook 'org-babel-after-execute-hook 'org-display-inline-images)
+  (add-hook 'org-mode-hook 'my-org-mode-hook))
+#+END_SRC
+
+** Custom
+Load this up last to allow for local customization if needed and to keep from custom writing to the init.el file.
+
+#+BEGIN_SRC emacs-lisp
+  (setq custom-file "~/.emacs.d/custom.el")
+  (load custom-file 'noerror)
+#+END_SRC
