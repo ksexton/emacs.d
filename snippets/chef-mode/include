@@ -1,0 +1,5 @@
+# -*- mode: snippet -*-
+# name: include
+# key: include
+# --
+include_recipe "#{cookbook_name}::${1:recipe}"

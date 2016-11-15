@@ -28,6 +28,7 @@ Keep slightly more sensitive information in a separate file so that I can easily
 (setq make-backup-files nil)
 (setq current-language-environment "UTF-8")
 (global-font-lock-mode 1)
+(global-set-key (kbd "C-;") #'comment-line)
 (set-terminal-coding-system 'utf-8)
 (set-keyboard-coding-system 'utf-8)
 (prefer-coding-system 'utf-8)
@@ -44,6 +45,16 @@ Keep slightly more sensitive information in a separate file so that I can easily
 
 #+END_SRC
 
+
+*** Tabs?
+#+BEGIN_SRC emacs-lisp
+;; Default to not using tabs
+(setq-default indent-tabs-mode nil)
+
+;; Except for Go-lang, because screw you that's why!
+(setq tab-width 4)
+(setq default-tab-width 4)
+#+END_SRC
 *** Change "yes or no" to "y or n"
 #+BEGIN_SRC emacs-lisp
 (fset 'yes-or-no-p 'y-or-n-p)
@@ -76,6 +87,9 @@ Setup use-package
 #+BEGIN_SRC emacs-lisp
 (setq indicate-empty-lines t)
 (setq indicate-buffer-boundaries 'left)
+(setq mac-allow-anti-aliasing t)
+;; highlight current line
+(global-hl-line-mode +1)
 (setq fringe-indicator-alist '(
                                (truncation . (left-arrow right-arrow))
                                (continuation . (left-curly-arrow backslash)) ;; right-curly-arrow
@@ -94,14 +108,24 @@ Setup use-package
                             (hbar . horizontal-bar)
                             (hollow-small . hollow-square)))
 
-(use-package cyberpunk-theme
-  :ensure t
-  :init
-  (load-theme 'cyberpunk t))
 
-(when (eq system-type 'darwin)
-  (set-face-attribute 'default nil :family "Input Mono")
-  (set-face-attribute 'default nil :height 140))
+(use-package moe-theme
+  :ensure t)
+
+(moe-dark)
+(global-set-key (kbd "<f5>") 'moe-dark)
+(global-set-key (kbd "<f6>") 'moe-light)
+
+;; (use-package cyberpunk-theme
+;;   :ensure t
+;;   :init
+;;   (load-theme 'cyberpunk t))
+
+;; (when (eq system-type 'darwin)
+;;   (set-face-attribute 'default nil :family "PragmataPro Mono")
+;;   (set-face-attribute 'default nil :height 160))
+
+(add-to-list 'default-frame-alist '(font . "PragmataPro-16" ))
 
 (setq indicate-empty-lines t)
 (add-to-list 'custom-theme-load-path "~/.emacs.d/themes")
@@ -111,7 +135,84 @@ Setup use-package
 (scroll-bar-mode -1)
 (menu-bar-mode 1)
 #+END_SRC
+
+**** Smart mode line
+#+BEGIN_SRC emacs-lisp
+(use-package smart-mode-line
+  :ensure t
+  :config
+  (progn
+    (setq sml/no-confirm-load-theme t)
+    (setq sml/theme 'respectful)
+    (add-hook 'after-init-hook #'sml/setup)))
+#+END_SRC
 ** Utilities
+*** Exec path
+#+BEGIN_SRC emacs-lisp
+(use-package exec-path-from-shell
+  :ensure t
+  :init
+  (exec-path-from-shell-copy-env "GOPATH"))
+
+#+END_SRC
+*** Fill column indicator
+#+BEGIN_SRC emacs-lisp
+;; (use-package fill-column-indicator
+;;   :ensure t
+;;   :init
+;;   (setq-default fci-rule-column 80)
+;;   (add-hook 'prog-mode-hook 'fci-mode))
+#+END_SRC
+*** Tramp
+This tidbit is useful for opening files with sudo perms on remote hosts
+
+Example: /sudo:root@example.com:/root/foo.txt
+
+#+BEGIN_SRC emacs-lisp
+(use-package tramp
+  :ensure t
+  :config
+  (add-to-list 'tramp-default-proxies-alist
+               '(nil "\\`root\\'" "/ssh:%h:"))
+  (add-to-list 'tramp-default-proxies-alist
+               '((regexp-quote (system-name)) nil nil)))
+
+#+END_SRC
+*** Magit
+#+BEGIN_SRC emacs-lisp
+(use-package magit
+  :ensure t)
+
+(global-set-key (kbd "s-m") nil)
+(global-set-key (kbd "s-m m") 'magit-status)
+(global-set-key (kbd "s-m l") 'magit-log)
+(global-set-key (kbd "s-m f") 'magit-log-buffer-file)
+(global-set-key (kbd "s-m b") 'magit-blame)
+
+(defun endless/visit-pull-request-url ()
+  "Visit the current branch's PR on Github."
+  (interactive)
+  (browse-url
+   (format "https://github.com/%s/pull/new/%s"
+           (replace-regexp-in-string
+            "\\`.+github\\.com:\\(.+\\)\\.git\\'" "\\1"
+            (magit-get "remote"
+                       (magit-get-remote)
+                       "url"))
+           (cdr (or (magit-get-remote-branch)
+                    (user-error "No remote branch"))))))
+
+(eval-after-load 'magit
+  '(define-key magit-mode-map "v"
+     #'endless/visit-pull-request-url))
+
+(defun magit-quick-commit ()
+  (interactive)
+  (magit-stage-modified)
+  (magit-commit))
+
+(global-set-key (kbd "C-c q") 'magit-quick-commit)
+#+END_SRC
 *** Helm
 #+BEGIN_SRC emacs-lisp
 (use-package helm
@@ -259,6 +360,14 @@ Setup use-package
 
 #+END_SRC
 
+*** restclient
+#+BEGIN_SRC emacs-lisp
+(use-package restclient
+  :ensure t)
+
+(use-package ob-restclient
+  :ensure t)
+#+END_SRC
 *** Multi-cursors
 #+BEGIN_SRC emacs-lisp
 (use-package multiple-cursors
@@ -287,17 +396,201 @@ Setup use-package
   :config
   (add-hook 'prog-mode-hook #'git-gutter-mode))
 #+END_SRC
-** Programming
-*** Golang
+
+*** Company auto-completion
 #+BEGIN_SRC emacs-lisp
-(use-package go-mode
+(use-package company
+  :ensure t
+  :init
+  (global-company-mode))
+
+(use-package company-flx
+  :ensure t
+  :init
+  (with-eval-after-load 'company
+    (company-flx-mode +1)))
+#+END_SRC
+
+*** Flycheck
+#+BEGIN_SRC emacs-lisp
+(use-package flycheck
+  :ensure t)
+#+END_SRC
+
+*** Yasnippet
+#+BEGIN_SRC emacs-lisp
+(use-package yasnippet
   :ensure t)
 
+(yas/load-directory "~/.emacs.d/snippets/")
+(yas-global-mode 1)
+
+#+END_SRC
+
+*** Markdown mode
+#+BEGIN_SRC emacs-lisp
+(use-package markdown-mode
+  :ensure t
+  :commands (markdown-mode gfm-mode)
+  :mode (("README\\.md\\'" . gfm-mode)
+         ("\\.md\\'" . markdown-mode)
+         ("\\.markdown\\'" . markdown-mode))
+  :init (setq markdown-command "multimarkdown"))
+
+#+END_SRC
+
+*** Hydra
+#+BEGIN_SRC emacs-lisp
+(use-package hydra
+  :ensure t)
+
+#+END_SRC
+
+*** EMMS
+#+BEGIN_SRC emacs-lisp
+(use-package emms
+  :ensure t)
+
+(use-package emms-player-mpv
+  :ensure t)
+
+(add-to-list 'emms-player-list 'emms-player-mpv)
+
+
+#+END_SRC
+
+*** Neotree
+#+BEGIN_SRC emacs-lisp
+(use-package neotree
+  :ensure t
+  :bind
+  ("C-c n" . neotree-toggle))
+#+END_SRC
+
+*** IBM Box
+
+Draw fancy boxes, use C-x r B to enter the Hydra and ESC to exit.
+
+┌─────┐   ╭─────╮
+│     │   │     │
+└─────┘   ╰─────╯
+
+#+BEGIN_SRC emacs-lisp
+(add-to-list 'load-path "~/.emacs.d/elisp/ibm-box-drawing")
+(require 'ibm-box-drawing-hydra)
+#+END_SRC
+
+*** Origami
+#+BEGIN_SRC emacs-lisp
+(use-package origami
+  :ensure t
+  :config
+  (progn
+    (add-hook 'prog-mode-hook 'origami-mode)
+    (add-hook 'emacs-lisp-mode-hook 'origami-mode))
+  :bind
+  ("C-c f" . origami-forward-toggle-node))
+
+
+#+END_SRC
+
+*** Change inner
+#+BEGIN_SRC emacs-lisp
+(use-package change-inner
+  :ensure t
+  :bind
+  ("s-i" . change-inner)
+  ("s-o" . change-outer))
+#+END_SRC
+
+*** Org screenshot
+#+BEGIN_SRC emacs-lisp
+(use-package org-attach-screenshot
+  :ensure t
+  :config
+  (setq org-attach-screenshot-command-line "/usr/sbin/screencapture -i %f"))
+#+END_SRC
+** Programming
+*** Terraform
+#+BEGIN_SRC emacs-lisp
+(use-package terraform-mode
+  :config
+  (setq terraform-indent-level 4))
+#+END_SRC
+*** Yaml
+#+BEGIN_SRC emacs-lisp
+(use-package yaml-mode
+  :ensure t)
+
+#+END_SRC
+*** Ruby
+#+BEGIN_SRC emacs-lisp
+(use-package rvm
+  :ensure t
+  :init
+  (rvm-use-default))
+
+(add-hook 'ruby-mode-hook
+          '(lambda ()
+             (setq flycheck-checker 'ruby-rubocop)
+             (flycheck-mode 1)))
+
+#+END_SRC
+*** Golang
+#+BEGIN_SRC emacs-lisp
+(use-package go-eldoc
+  :ensure t)
+
+(use-package go-projectile
+  :ensure t)
+
+(use-package gotest
+  :ensure t)
+
+(use-package company-go
+  :ensure t
+  :init
+  (add-to-list 'company-backends 'company-go)
+)
+
+(use-package go-mode
+  :ensure t
+  :init
+  (go-eldoc-setup)
+  (local-set-key (kbd "M-.") #'godef-jump)
+  ;; Prefer goimports to gofmt if installed
+  ;; (let ((goimports (executable-find "goimports")))
+  ;;   (when goimports
+  ;;     (setq gofmt-command goimports)))
+
+  ;; (require 'go-mode-autoloads)
+  ;; gofmt on save
+  
+  
+  (let ((map go-mode-map))
+    (define-key map (kbd "C-c a") 'go-test-current-project) ;; current package, really
+    (define-key map (kbd "C-c m") 'go-test-current-file)
+    (define-key map (kbd "C-c .") 'go-test-current-test)
+    (define-key map (kbd "C-c b") 'go-run))
+  (subword-mode +1)
+  (add-to-list 'completion-ignored-extensions ".test")
+  (define-key 'help-command (kbd "G") 'godoc)
+  )
+
+(add-hook 'go-mode-hook
+          '(lambda ()             
+             (flycheck-mode 1)
+             (smartparens-mode 0)
+             (electric-pair-mode 1)
+             (add-hook 'before-save-hook 'gofmt-before-save)))
 #+END_SRC
 *** Clojure
 #+BEGIN_SRC emacs-lisp
 (use-package subword
     :ensure t)
+
+(use-package clojure-cheatsheet
+  :ensure t)
 
 (use-package clojure-mode
   :ensure t
@@ -362,9 +655,53 @@ Setup use-package
   :config
   (add-to-list 'auto-mode-alist '("Dockerfile\\'" . dockerfile-mode)))
 #+END_SRC
+
+*** Chef
+#+BEGIN_SRC emacs-lisp
+(define-minor-mode chef-mode
+  "This is to activate chef-mode for yasnippet"
+  :lighter " chef-mode")
+
+(flycheck-add-next-checker 'chef-foodcritic 'ruby-rubocop)
+
+(add-hook 'chef-mode-hook
+          '(lambda ()
+             (ruby-mode)
+             (setq flycheck-checker 'chef-foodcritic)
+             (flycheck-mode 1)
+             (yas-activate-extra-mode 'chef-mode)))
+
+(add-to-list 'auto-mode-alist '("recipes/" . chef-mode))
+#+END_SRC
+*** Inspec
+#+BEGIN_SRC emacs-lisp
+(define-minor-mode inspec-mode
+  "This is to activate inspec-mode for yasnippet"
+  :lighter " inspec-mode")
+
+(flycheck-add-next-checker 'chef-foodcritic 'ruby-rubocop)
+
+(add-hook 'inspec-mode-hook
+          '(lambda ()
+             (ruby-mode)
+             (setq flycheck-checker 'chef-foodcritic)
+             (flycheck-mode 1)
+             (yas-activate-extra-mode 'inspec-mode)))
+
+(add-to-list 'auto-mode-alist '("inspec/" . inspec-mode))
+
+
+
+#+END_SRC
+*** Mustache
+#+BEGIN_SRC emacs-lisp
+(use-package mustache-mode
+  :ensure t)
+
+#+END_SRC
 ** Communication
 *** Gnus
-#+BEGIN_SRC emacs-lisp
+#+BEGIN_SRC emacs-lisp :tangle no
 (require 'gnus)
 
 (setq message-fill-column (- (window-width) 5))
@@ -601,6 +938,384 @@ Setup use-package
 
 (global-set-key (kbd "s-m") 'gnus)
 
+
+(eval-after-load 'gnus-group
+  '(progn
+     (defhydra hydra-gnus-group (:color blue)
+       "Do?"
+       ("a" gnus-group-list-active "REMOTE groups A A")
+       ("l" gnus-group-list-all-groups "LOCAL groups L")
+       ("c" gnus-topic-catchup-articles "Read all c")
+       ("G" gnus-group-make-nnir-group "Search server G G")
+       ("g" gnus-group-get-new-news "Refresh g")
+       ("s" gnus-group-enter-server-mode "Servers")
+       ("m" gnus-group-new-mail "Compose m OR C-x m")
+       ("#" gnus-topic-mark-topic "mark #")
+       ("q" nil "cancel"))
+     ;; y is not used by default
+     (define-key gnus-group-mode-map "y" 'hydra-gnus-group/body)))
+
+;; gnus-summary-mode
+(eval-after-load 'gnus-sum
+  '(progn
+     (defhydra hydra-gnus-summary (:color blue)
+       "Do?"
+       ("n" gnus-summary-insert-new-articles "Refresh / N")
+       ("f" gnus-summary-mail-forward "Forward C-c C-f")
+       ("!" gnus-summary-tick-article-forward "Mail -> disk !")
+       ("p" gnus-summary-put-mark-as-read "Mail <- disk")
+       ("c" gnus-summary-catchup-and-exit "Read all c")
+       ("e" gnus-summary-resend-message-edit "Resend S D e")
+       ("R" gnus-summary-reply-with-original "Reply with original R")
+       ("r" gnus-summary-reply "Reply r")
+       ("W" gnus-summary-wide-reply-with-original "Reply all with original S W")
+       ("w" gnus-summary-wide-reply "Reply all S w")
+       ("#" gnus-topic-mark-topic "mark #")
+       ("q" nil "cancel"))
+     ;; y is not used by default
+     (define-key gnus-summary-mode-map "y" 'hydra-gnus-summary/body)))
+
+;; gnus-article-mode
+(eval-after-load 'gnus-art
+  '(progn
+     (defhydra hydra-gnus-article (:color blue)
+       "Do?"
+       ("f" gnus-summary-mail-forward "Forward")
+       ("R" gnus-article-reply-with-original "Reply with original R")
+       ("r" gnus-article-reply "Reply r")
+       ("W" gnus-article-wide-reply-with-original "Reply all with original S W")
+       ("o" gnus-mime-save-part "Save attachment at point o")
+       ("w" gnus-article-wide-reply "Reply all S w")
+       ("q" nil "cancel"))
+     ;; y is not used by default
+     (define-key gnus-article-mode-map "y" 'hydra-gnus-article/body)))
+
+(eval-after-load 'message
+  '(progn
+     (defhydra hydra-message (:color blue)
+       "Do?"
+       ("ca" mml-attach-file "Attach C-c C-a")
+       ("cc" message-send-and-exit "Send C-c C-c")
+       ("q" nil "cancel"))
+     (global-set-key (kbd "C-c C-y") 'hydra-message/body)))
+#+END_SRC
+*** mu4e
+#+BEGIN_SRC emacs-lisp
+(require 'mu4e)
+(require 'mu4e-contrib)
+(require 'org-mu4e)
+
+
+;;;;; HTML Settings
+(setq mu4e-html2text-command 'mu4e-shr2text)
+
+(add-hook 'mu4e-view-mode-hook
+  (lambda()
+    ;; try to emulate some of the eww key-bindings
+    (local-set-key (kbd "<tab>") 'shr-next-link)
+    (local-set-key (kbd "<backtab>") 'shr-previous-link)))
+
+(setq shr-color-visible-luminance-min 80)
+
+
+;; shr settings
+;; (setq shr-color-visible-luminance-min 70)
+
+;; (setq shr-width nil)
+
+;; (add-hook 'mu4e-view-mode-hook
+;;           (lambda()
+;;             ;; try to emulate some of the eww key-bindings
+;;             (local-set-key (kbd "<tab>") 'shr-next-link)
+;;             (local-set-key (kbd "<backtab>") 'shr-previous-link)
+;;             (local-unset-key (kbd "k"))
+;;             (local-set-key (kbd "k") 'shr-copy-url)))
+
+;; ;; Message view
+;; (defun mu4e-shr2text ()
+;;   (let ((dom (libxml-parse-html-region (point-min) (point-max)))
+;;         (shr-inhibit-images t))
+;;     (erase-buffer)
+;;     (shr-insert-document dom)
+;;     (goto-char (point-min))))
+
+;; (defun oni:shr-colorize-remove-last-arg (args)
+;;   "If ARGS has more than 3 items, remove the last one."
+;;   (if (> (length args) 3)
+;;       (butlast args)
+;;     args))
+
+;; (with-eval-after-load 'shr
+;;   (advice-add #'shr-colorize-region :filter-args
+;;               #'oni:shr-colorize-remove-last-arg))
+
+
+;; (setq
+;;  mu4e-html2text-command 'mu4e-shr2text
+;;  mu4e-view-prefer-html t)
+
+
+
+;; (setq mu4e-view-wrap-lines t)
+
+(defun my-set-style-outlook ()
+  (interactive)
+  (setq message-cite-function 'message-cite-original
+        message-citation-line-function 'message-insert-formatted-citation-line
+        message-cite-reply-position 'above
+        message-yank-prefix ""
+        message-yank-cited-prefix ""
+        message-yank-empty-prefix ""
+        message-citation-line-format "\n\n-----------------------\nOn %a, %b %d %Y, %N wrote:\n"))
+
+;; (setq mu4e-view-prefer-html t)
+
+
+
+(setq mu4e-mu-binary "/usr/local/bin/mu")
+(setq smtpmail-queue-dir "~/Maildir/queued-mail")
+(setq mu4e-maildir "~/Maildir"
+      mu4e-sent-folder "/mocker.org/Sent"
+      mu4e-drafts-folder "/mocker.org/Drafts"
+      mu4e-attachment-dir "~/Downloads/"
+      mu4e-trash-folder "/mocker.org/Trash"
+      mu4e-headers-show-threads nil)
+
+;; (add-hook 'mu4e-index-updated-hook
+;;           (defun notify-on-mail ()
+;;             (start-process "terminal-notifier" nil
+;;               "terminal-notifier"
+;;               "-message" "M-x mu4e"
+;;               "-title" "New mail as arrived"
+;;               "-sound" "Pop"
+;;               "-group" "mu4e-new-mail")))
+
+(add-hook 'message-mode-hook
+          '(lambda () (local-set-key (kbd "C-c M-o") 'org-mu4e-compose-org-mode))
+          'append)
+
+(setq mu4e-hide-index-messages t)
+
+(setq org-mu4e-convert-to-html t)
+
+
+;;; (setq mu4e-html2text-command "pandoc -f html -t plain")
+
+
+(setq mu4e-maildir-shortcuts
+      '(("/newcontext.com/INBOX" . ?n)
+        ("/newcontext.com/Sent" . ?s)
+        ("/mocker.org/INBOX" . ?m)
+        ("/mocker.org/Sent" . ?S)
+        ))
+
+(setq mu4e-contexts
+      `( ,(make-mu4e-context
+           :name "home"
+           :enter-func (lambda () (mu4e-message "Switch to the Home context"))
+           ;; leave-func not defined
+           :match-func (lambda (msg)
+                         (when msg
+                           (mu4e-message-contact-field-matches msg
+                                                               :to "ks@mocker.org")))
+           :vars '((mu4e-sent-folder . "/mocker.org/Sent")
+                   (mu4e-drafts-folder . "/mocker.org/Drafts")
+                   (mu4e-trash-folder . "/mocker.org/Trash")
+                   (user-mail-address . "ks@mocker.org")
+                   (user-full-name . "Kyle Sexton")
+                   (mu4e-compose-signature-auto-include . nil)
+                   (message-signature-file . "~/.signature-mocker")
+                   (message-cite-reply-position . above)
+                   (message-cite-style . message-cite-style-outlook)))
+         ,(make-mu4e-context
+           :name "work"
+           :enter-func (lambda () (mu4e-message "Switch to the Work context"))
+           ;; leave-fun not defined
+           :match-func (lambda (msg)
+                         (when msg
+                           (mu4e-message-contact-field-matches msg
+                                                               :to "kyle.sexton@newcontext.com")))
+           :vars '((mu4e-sent-folder . "/newcontext.com/Sent")
+                   (mu4e-drafts-folder . "/newcontext.com/Drafts")
+                   (mu4e-trash-folder . "/newcontext.com/Trash")
+                   (user-mail-address . "kyle.sexton@newcontext.com")
+                   (user-full-name . "Kyle Sexton")
+                   (mu4e-compose-signature-auto-include . nil)
+                   (message-signature-file . "~/.signature-newcontext")
+                   (message-cite-reply-position . above)
+                   (message-cite-style . message-cite-style-outlook)
+                   ))))
+
+
+                                        ; Be smart about inserting signature for either cite-reply-position used
+(defun insert-signature ()
+  "Insert signature where you are replying"
+                                        ; Do not insert if already done - needed when switching modes back/forth
+  (unless (save-excursion (message-goto-signature))
+    (save-excursion
+      (if (eq message-cite-reply-position 'below)
+          (goto-char (point-max))
+        (message-goto-body))
+      (insert-file-contents message-signature-file)
+      (save-excursion (insert "\n-- \n")))))
+
+(add-hook 'mu4e-compose-mode-hook 'insert-signature)
+
+
+(add-hook 'mu4e-compose-pre-hook 'my-set-style-outlook)
+
+(setq mail-user-agent 'mu4e-user-agent)
+
+
+
+(setq mu4e-user-mail-address-list (list "kyle.sexton@newcontext.com" "ks@mocker.org"))
+(setq user-mail-address "kyle.sexton@newcontext.com"
+      user-full-name  "Kyle Sexton")
+
+(setq message-send-mail-function 'message-send-mail-with-sendmail
+      sendmail-program "/usr/local/bin/msmtp"
+      user-full-name "Kyle Sexton")
+
+(setq mu4e-get-mail-command "mbsync -q all-mail")
+(setq mu4e-update-interval 120)
+
+(setq mu4e-confirm-quit nil
+      mu4e-headers-date-format "%d/%b/%Y %H:%M") ; date format
+                                        ;      mu4e-html2text-command "w3m -dump -T text/html -S")
+                                        ; (setq mu4e-html2text-command "w3m -dump -cols 80 -T text/html")
+
+
+
+;; (setq mu4e-html-renderer 'w3m)
+
+;; (setq mu4e-html2text-command
+;;       "textutil -stdin -format html -convert txt -stdout")
+
+
+;; Borrowed from http://ionrock.org/emacs-email-and-mu.html
+;; Choose account label to feed msmtp -a option based on From header
+;; in Message buffer; This function must be added to
+;; message-send-mail-hook for on-the-fly change of From address before
+;; sending message since message-send-mail-hook is processed right
+;; before sending message.
+(defun choose-msmtp-account ()
+  (if (message-mail-p)
+      (save-excursion
+        (let*
+            ((from (save-restriction
+                     (message-narrow-to-headers)
+                     (message-fetch-field "from")))
+             (account
+              (cond
+               ((string-match "kyle.sexton@newcontext.com" from) "newcontext")
+               ((string-match "ks@mocker.org" from) "mocker"))))
+          (setq message-sendmail-extra-arguments (list '"-a" account))))))
+
+(setq message-sendmail-envelope-from 'header)
+(add-hook 'message-send-mail-hook 'choose-msmtp-account)
+
+
+(setq mu4e-bookmarks
+      `((,(concat
+           "maildir:/mocker.org/INBOX"
+           " AND date:today..now")               "mocker mail today"      ?m)
+        (,(concat
+           "maildir:/newcontext.com/INBOX"
+           " AND date:today..now")               "New Context mail today" ?n)
+        (,(concat
+           "maildir:/newcontext.com/INBOX"
+           " AND date:7d..now"
+           " AND to:kyle.sexton@newcontext.com") "New Context this week"  ?w)
+        ("mime:image/*"                          "Messages with images"   ?p)))
+
+
+
+(add-hook 'mu4e-compose-pre-hook
+          (defun my-set-from-address ()
+            "Set the From address based on the To address of the original."
+            (let ((msg mu4e-compose-parent-message)) ;; msg is shorter...
+              (if msg
+                  (setq user-mail-address
+                        (cond
+                         ((mu4e-message-contact-field-matches msg :to "@newcontext.com")
+                          "kyle.sexton@newcontext.com")
+                         ((mu4e-message-contact-field-matches msg :to "@mocker.org")
+                          "ks@mocker.org")
+                         (t "kyle.sexton@newcontext.com")))))))
+
+(defun no-auto-fill ()
+  "Turn off auto-fill-mode."
+  (auto-fill-mode -1))
+
+;; (add-hook 'mu4e-compose-mode-hook #'no-auto-fill)
+
+(add-hook 'mu4e-compose-mode-hook
+          (defun my-do-compose-stuff ()
+            "My settings for message composition."
+            (no-auto-fill)
+            (flyspell-mode)))
+
+(add-hook 'message-mode-hook 'orgstruct++-mode 'append)
+;; (add-hook 'message-mode-hook 'turn-on-auto-fill 'append)
+;; (add-hook 'message-mode-hook 'bbdb-mail-aliases 'append)
+(add-hook 'message-mode-hook 'orgtbl-mode 'append)
+(add-hook 'message-mode-hook 'turn-on-flyspell 'append)
+;; (add-hook 'message-mode-hook
+;;           '(lambda () (setq fill-column 72))
+;;           'append)
+
+
+(setq message-fill-column nil)
+
+;; adapted from https://groups.google.com/d/topic/mu-discuss/ZXB72TR5GL0/discussion
+(defun mu4e-msgv-action-view-in-browser (msg)
+  "View the body of the message in a web browser."
+  (interactive)
+  (let ((html (mu4e-msg-field (mu4e-message-at-point t) :body-html))
+        (tmpfile (format "%s/%d.html" temporary-file-directory (random))))
+    (unless html (error "No html part for this message"))
+    (with-temp-file tmpfile
+      (insert
+       "<html>"
+       "<head><meta http-equiv=\"content-type\""
+       "content=\"text/html;charset=UTF-8\">"
+       html))
+    (browse-url (concat "file://" tmpfile))))
+(add-to-list 'mu4e-view-actions
+             '("View in browser" . mu4e-msgv-action-view-in-browser) t)
+
+
+(setq mu4e-use-fancy-chars nil)
+
+;; marks for headers of the form; each is a cons-cell (basic . fancy)
+;; each of which is basic ascii char and something fancy, respectively
+
+;; (setq mu4e-headers-draft-mark     '("D" . "📝"))
+;; (setq mu4e-headers-flagged-mark   '("F" . "‼️"))
+;; (setq mu4e-headers-new-mark       '("N" . "🌟"))
+;; (setq mu4e-headers-passed-mark    '("P" . "➡️"))
+;; (setq mu4e-headers-replied-mark   '("R" . "⬅️"))
+;; (setq mu4e-headers-seen-mark      '("S" . "📄"))
+;; (setq mu4e-headers-trashed-mark   '("T" . "♻️"))
+;; (setq mu4e-headers-attach-mark    '("a" . "📦"))
+;; (setq mu4e-headers-encrypted-mark '("x" . "🔒"))
+;; (setq mu4e-headers-signed-mark    '("s" . "👤"))
+;; (setq mu4e-headers-unread-mark    '("u" . "✉️"))
+
+;; ;; thread prefix marks
+;; (setq mu4e-headers-has-child-prefix    '("+"  . "◼"))
+;; (setq mu4e-headers-empty-parent-prefix '("-"  . "◽"))
+;; (setq mu4e-headers-first-child-prefix  '("\\" . "┗▶"))
+;; (setq mu4e-headers-duplicate-prefix    '("="  . "⚌"))
+;; (setq mu4e-headers-default-prefix      '("|"  . "┃"))
+
+(global-set-key (kbd "s-m") 'mu4e)
+#+END_SRC
+*** RMOO
+#+BEGIN_SRC emacs-lisp
+(add-to-list 'load-path "~/.emacs.d/elisp/rmoo")
+(require 'rmoo-autoload)
+
 #+END_SRC
 ** Org Mode
 #+BEGIN_SRC emacs-lisp
@@ -694,7 +1409,7 @@ Setup use-package
                                      ;; other commands go here
                                      )
         org-log-into-drawer "LOGBOOK"
-        org-ditaa-jar-path "~/.emacs.d/java/ditaa0_9.jar"
+        org-ditaa-jar-path "~/.emacs.d/java/ditaa0_10.jar"
         org-plantuml-jar-path "~/.emacs.d/java/plantuml.jar"
         org-babel-clojure-backend 'cider
 
@@ -722,12 +1437,31 @@ Setup use-package
                ("\\paragraph{%s}" . "\\paragraph*{%s}")
                ("\\subparagraph{%s}" . "\\subparagraph*{%s}")))
     (require 'ob-clojure)
+    (require 'ob-restclient)
     (org-babel-do-load-languages 'org-babel-load-languages
-                                 '((clojure . t)))
+                                 '((clojure . t)
+                                   (restclient . t)))
     (require 'org-habit))
 
   (add-hook 'org-babel-after-execute-hook 'org-display-inline-images)
   (add-hook 'org-mode-hook 'my-org-mode-hook))
+
+(require 'org-drill)
+(setq org-drill-hide-item-headings-p t)
+
+;; enable inline images
+(setq mu4e-view-show-images t)
+;; use imagemagick, if available
+(when (fboundp 'imagemagick-register-types)
+  (imagemagick-register-types))
+
+(use-package htmlize
+  :ensure t)
+
+(use-package ox-reveal
+  :ensure t
+  :config
+  (setq org-reveal-root "file:///Users/kes/.emacs.d/reveal.js"))
 #+END_SRC
 
 ** Custom

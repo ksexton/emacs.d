@@ -1,0 +1,9 @@
+# -*- mode: snippet -*-
+# name: command
+# key: command
+# --
+describe command('${1:command}') do
+  it { should exist }
+  its('${2:$$(yas-choose-value '("exit_status" "stderr" "stdout"))}') { should eq '${3:output}' }
+end
+  
